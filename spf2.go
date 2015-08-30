@@ -4,6 +4,8 @@ package libspf2
 #cgo LDFLAGS: -L/usr/local/lib -L/usr/lib -lspf2
 #cgo CFLAGS: -g -O2 -Wno-error -I/usr/include -I/usr/local/include
 
+#include <time.h>
+#include <netinet/in.h>
 #include <stdlib.h>
 #include <netdb.h>
 #include <spf2/spf.h>
