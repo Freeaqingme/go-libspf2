@@ -4,12 +4,17 @@ package libspf2
 #cgo LDFLAGS: -L/usr/local/lib -L/usr/lib -lspf2
 #cgo CFLAGS: -g -O2 -Wno-error -I/usr/include -I/usr/local/include
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <spf2/spf.h>
 */
 import "C"
-import "errors"
+
+import (
+	"errors"
+	"net"
+	"unsafe"
+)
 
 const (
 	SPFResultINVALID   = Result(C.SPF_RESULT_INVALID)   // (invalid)
@@ -23,7 +28,7 @@ const (
 )
 
 type Client interface {
-	Query(host, ip string) (Result, error)
+	Query(host string, ip net.IP) (Result, error)
 	Close()
 }
 
@@ -38,7 +43,7 @@ func NewClient() Client {
 	return client
 }
 
-func (s *clientImpl) Query(host, ip string) (Result, error) {
+func (s *clientImpl) Query(host string, ip net.IP) (Result, error) {
 	if s.s == nil {
 		return SPFResultINVALID, errors.New("client already closed")
 	}
@@ -47,7 +52,7 @@ func (s *clientImpl) Query(host, ip string) (Result, error) {
 	if err := req.setEnvFrom(host); err != nil {
 		return SPFResultINVALID, err
 	}
-	if err := req.setIPv4Addr(ip); err != nil {
+	if err := req.setIpAddr(ip); err != nil {
 		return SPFResultINVALID, err
 	}
 	resp, err := req.query()
@@ -77,20 +82,28 @@ func newRequest(s *clientImpl) *request {
 	return r
 }
 
-// SetIPv4Addr sets the sender IPv4
-func (r *request) setIPv4Addr(addr string) error {
+// SetIPAddr sets the IP address of the client (sending) MTA
+func (r *request) setIpAddr(ip net.IP) error {
 	var stat C.SPF_errcode_t
-	stat = C.SPF_request_set_ipv4_str(r.r, C.CString(addr))
+	cstring := C.CString(ip.String())
+	defer C.free(unsafe.Pointer(cstring))
+	if ip.To4() != nil {
+		stat = C.SPF_request_set_ipv4_str(r.r, cstring)
+	} else {
+		stat = C.SPF_request_set_ipv6_str(r.r, cstring)
+	}
 	if stat != C.SPF_E_SUCCESS {
 		return &spfError{stat}
 	}
 	return nil
 }
 
-// SetEnvFrom sets the sender host
-func (r *request) setEnvFrom(fromHost string) error {
+// SetEnvFrom sets the envelope from email address from the SMTP MAIL FROM: command
+func (r *request) setEnvFrom(from string) error {
 	var stat C.int
-	stat = C.SPF_request_set_env_from(r.r, C.CString(fromHost))
+	cstring := C.CString(from)
+	defer C.free(unsafe.Pointer(cstring))
+	stat = C.SPF_request_set_env_from(r.r, cstring)
 	if stat != C.int(C.SPF_E_SUCCESS) {
 		return &spfError{C.SPF_errcode_t(stat)}
 	}
