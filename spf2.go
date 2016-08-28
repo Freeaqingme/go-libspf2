@@ -41,7 +41,7 @@ type clientImpl struct {
 // NewClient creates a new SPF client.
 func NewClient() Client {
 	client := new(clientImpl)
-	client.s = C.SPF_server_new(C.SPF_DNS_CACHE, 0)
+	client.s = C.SPF_server_new(C.SPF_DNS_RESOLV, 0)
 	return client
 }
 
